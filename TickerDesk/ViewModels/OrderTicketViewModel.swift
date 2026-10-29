@@ -4,7 +4,7 @@ import Observation
 /// Form state for the order ticket. Only checks input shape; the account rules
 /// (funds, shares) are enforced by `TradingService` on submit.
 @Observable
-final class OrderTicketViewModel {
+final class OrderTicketViewModel: Identifiable {
     let symbol: String
     var side: OrderSide
     var kind: OrderKind = .market

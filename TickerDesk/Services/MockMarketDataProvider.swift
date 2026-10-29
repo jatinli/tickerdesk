@@ -30,6 +30,22 @@ struct MockMarketDataProvider: MarketDataProvider {
 
     static let defaultWatchlist = ["AAPL", "MSFT", "NVDA", "TSLA", "IBKR"]
 
+    /// The latest simulated price per symbol, shared by the live feed and `history`.
+    private final class PriceBook: @unchecked Sendable {
+        static let shared = PriceBook()
+
+        private let lock = NSLock()
+        private var prices: [String: Decimal] = [:]
+
+        func price(for symbol: String) -> Decimal {
+            lock.withLock { prices[symbol] ?? MockMarketDataProvider.seedPrice(for: symbol) }
+        }
+
+        func set(_ price: Decimal, for symbol: String) {
+            lock.withLock { prices[symbol] = price }
+        }
+    }
+
     var tickInterval: Duration = .milliseconds(100)
     /// Drops the "connection" about once a minute so the reconnect UI can be demoed.
     var simulateDropouts = true
@@ -44,9 +60,10 @@ struct MockMarketDataProvider: MarketDataProvider {
         return max(.cent, (price * (1 + basisPoints / 10_000)).rounded(scale: 2))
     }
 
+    /// Starts from the shared simulated price, where `history` ends, so the live line continues the chart.
     private static func initialQuote(for symbol: String) -> Quote {
-        let previousClose = seedPrice(for: symbol)
-        let last = step(previousClose, maxBasisPoints: 150)
+        let last = PriceBook.shared.price(for: symbol)
+        let previousClose = step(last, maxBasisPoints: 150)
         return Quote(
             symbol: symbol,
             last: last,
@@ -82,6 +99,7 @@ struct MockMarketDataProvider: MarketDataProvider {
                     quote.volume += Int.random(in: 100...5_000)
                     quote.timestamp = .now
                     quotes[symbol] = quote
+                    PriceBook.shared.set(quote.last, for: symbol)
                     continuation.yield(.quote(quote))
 
                     ticks += 1
@@ -100,9 +118,9 @@ struct MockMarketDataProvider: MarketDataProvider {
     func history(for symbol: String, range: ChartRange) async throws -> [PricePoint] {
         try await Task.sleep(for: .milliseconds(250)) // pretend it's a network call
 
-        // Walk backwards from the seed so the chart ends near today's price.
+        // Walk backwards from the current simulated price so the chart ends where the live feed is.
         let now = Date()
-        var price = Self.seedPrice(for: symbol)
+        var price = PriceBook.shared.price(for: symbol)
         var points: [PricePoint] = []
         for index in 0..<range.pointCount {
             points.append(PricePoint(date: now.addingTimeInterval(-Double(index) * range.interval), price: price))

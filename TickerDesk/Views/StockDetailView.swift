@@ -9,7 +9,7 @@ struct StockDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var watchlistMatches: [WatchlistItem]
     @State private var model: StockDetailViewModel
-    @State private var ticketSide: OrderSide?
+    @State private var ticket: OrderTicketViewModel?
 
     init(symbol: String) {
         self.symbol = symbol
@@ -45,8 +45,8 @@ struct StockDetailView: View {
         .task(id: model.range) { await model.loadHistory(using: app.provider) }
         .onAppear { app.extraSymbols.insert(symbol) }
         .onDisappear { app.extraSymbols.remove(symbol) }
-        .sheet(item: $ticketSide) { side in
-            OrderTicketView(symbol: symbol, initialSide: side)
+        .sheet(item: $ticket) { ticket in
+            OrderTicketView(ticket: ticket)
         }
     }
 
@@ -66,7 +66,8 @@ struct StockDetailView: View {
 
     private var chartSection: some View {
         let points = model.chartPoints(live: quote)
-        let trend = (points.last?.price ?? 0) - (points.first?.price ?? 0)
+        // Match the header: colour by today's change when live, else by the chart's own move.
+        let trend = quote?.change ?? ((points.last?.price ?? 0) - (points.first?.price ?? 0))
 
         return VStack(spacing: 12) {
             Chart(points) { point in
@@ -98,7 +99,7 @@ struct StockDetailView: View {
             StatCell(title: "Bid", value: quote?.bid?.currencyString ?? "—")
             StatCell(title: "Ask", value: quote?.ask?.currencyString ?? "—")
             StatCell(title: "Prev. close", value: quote?.previousClose.currencyString ?? "—")
-            StatCell(title: "Volume", value: quote.map { $0.volume.formatted(.number.notation(.compactName)) } ?? "—")
+            StatCell(title: "Volume", value: quote.map { $0.volume.formatted(.number.notation(.compactName).locale(.usMarket)) } ?? "—")
         }
     }
 
@@ -122,10 +123,10 @@ struct StockDetailView: View {
 
     private var tradeButtons: some View {
         HStack(spacing: 12) {
-            Button { ticketSide = .buy } label: { Text("Buy").frame(maxWidth: .infinity) }
+            Button { ticket = OrderTicketViewModel(symbol: symbol, side: .buy) } label: { Text("Buy").frame(maxWidth: .infinity) }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-            Button { ticketSide = .sell } label: { Text("Sell").frame(maxWidth: .infinity) }
+            Button { ticket = OrderTicketViewModel(symbol: symbol, side: .sell) } label: { Text("Sell").frame(maxWidth: .infinity) }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
                 .disabled(position == nil)

@@ -1,19 +1,24 @@
 import SwiftUI
 
 struct OrderTicketView: View {
-    let symbol: String
+    /// Owned by the presenting screen. Creating it here in `init` would hand the toolbar
+    /// a fresh, unedited copy whenever a price tick rebuilds this view.
+    @Bindable var ticket: OrderTicketViewModel
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @State private var ticket: OrderTicketViewModel
     @State private var isConfirming = false
+    @State private var pendingOrder: PendingOrder?
     @State private var submitError: String?
 
-    init(symbol: String, initialSide: OrderSide) {
-        self.symbol = symbol
-        _ticket = State(initialValue: OrderTicketViewModel(symbol: symbol, side: initialSide))
+    /// Snapshot taken on Review, so the order placed is exactly the one confirmed.
+    private struct PendingOrder {
+        let side: OrderSide
+        let quantity: Int
+        let type: OrderType
     }
 
+    private var symbol: String { ticket.symbol }
     private var quote: Quote? { app.quoteStore.quotes[symbol] }
 
     var body: some View {
@@ -71,25 +76,28 @@ struct OrderTicketView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Review") { isConfirming = true }
+                    Button("Review", action: review)
                         .disabled(!ticket.isValid)
                 }
             }
-            .confirmationDialog("Confirm order", isPresented: $isConfirming, titleVisibility: .visible) {
-                Button("Place order", action: submit)
-            } message: {
-                if let quantity = ticket.quantity, let type = ticket.orderType {
-                    Text("\(ticket.side.title) \(quantity) \(symbol) · \(type.title)\nPaper trading: no real money.")
-                }
+            .confirmationDialog("Confirm order", isPresented: $isConfirming, titleVisibility: .visible, presenting: pendingOrder) { order in
+                Button("Place order") { submit(order) }
+            } message: { order in
+                Text("\(order.side.title) \(order.quantity) \(symbol) · \(order.type.title)\nPaper trading: no real money.")
             }
             .onChange(of: ticket.side) { submitError = nil }
         }
     }
 
-    private func submit() {
+    private func review() {
         guard let quantity = ticket.quantity, let type = ticket.orderType else { return }
+        pendingOrder = PendingOrder(side: ticket.side, quantity: quantity, type: type)
+        isConfirming = true
+    }
+
+    private func submit(_ order: PendingOrder) {
         do {
-            try app.trading.submit(symbol: symbol, side: ticket.side, quantity: quantity, type: type, quote: quote)
+            try app.trading.submit(symbol: symbol, side: order.side, quantity: order.quantity, type: order.type, quote: quote)
             dismiss()
         } catch {
             submitError = error.localizedDescription

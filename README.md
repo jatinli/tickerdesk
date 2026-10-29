@@ -2,6 +2,14 @@
 
 A SwiftUI paper-trading app: live quotes, a watchlist, market and limit orders, and a portfolio with live P&L. No real money is involved.
 
+## Screenshots
+
+Captured from the iOS Simulator running the simulated market feed.
+
+| Watchlist | Stock detail | Order ticket | Portfolio | Orders |
+|---|---|---|---|---|
+| <img src="docs/screenshots/1-watchlist.png" width="180" alt="Watchlist with live prices and daily change"> | <img src="docs/screenshots/2-stock-detail.png" width="180" alt="AAPL detail with intraday chart, bid/ask and Buy/Sell"> | <img src="docs/screenshots/3-order-ticket.png" width="180" alt="Order ticket for 5 AAPL with cost estimate"> | <img src="docs/screenshots/4-portfolio.png" width="180" alt="Portfolio with account value, cash and P&L"> | <img src="docs/screenshots/5-orders.png" width="180" alt="Order history with fills"> |
+
 ## Running it
 
 1. Open `TickerDesk.xcodeproj` in Xcode 16 or later.
